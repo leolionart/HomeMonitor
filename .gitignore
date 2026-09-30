@@ -1,0 +1,25 @@
+# macOS files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode and build artifacts
+*.xcuserstate
+xcuserdata/
+DerivedData/
+build/
+.build/
+*.app
+*.dSYM
+
+# Temporary files and certificates
+*.p12
+*.pem
+*.key
+*.csr
+*.certSigningRequest
+/tmp/
+
+# Secrets and local configurations
+*.env
+*.local
