@@ -11,6 +11,9 @@ build/
 .build/
 *.app
 *.dSYM
+*.dmg
+*.zip
+checksums.txt
 
 # Temporary files and certificates
 *.p12

@@ -4,12 +4,11 @@ import SwiftUI
 
 @MainActor
 final class UnifiedCameraViewModel: ObservableObject {
-    @Published var selectedCameraID: UUID?
     @Published var showingAddEditSheet: Bool = false
     @Published var editingCamera: CameraConfig? = nil
     @Published var formName: String = ""
     @Published var formURL: String = ""
-    @Published var isHoveringControls: Bool = false
+    @Published var isPlayerUIVisible: Bool = true
 
     func openAddSheet() {
         editingCamera = nil
@@ -29,13 +28,10 @@ final class UnifiedCameraViewModel: ObservableObject {
 struct CameraStreamMainView: View {
     @ObservedObject var appState: AppState
     @StateObject private var vm = UnifiedCameraViewModel()
-    @StateObject private var player = RTSPStreamPlayer()
-
+    @StateObject private var hub = StreamHub.shared
+    @ObservedObject private var player = StreamHub.shared.player
     private var activeCamera: CameraConfig? {
-        if let id = vm.selectedCameraID, let cam = appState.cameras.first(where: { $0.id == id }) {
-            return cam
-        }
-        return appState.cameras.first
+        hub.activeCamera(in: appState.cameras)
     }
 
     var body: some View {
@@ -43,7 +39,8 @@ struct CameraStreamMainView: View {
             // Background is pure pitch black for camera canvas
             Color.black.ignoresSafeArea()
 
-            // 1. Video Layer: fills the entire window seamlessly without black borders
+            // 1. Video layer: live frame; while a stream (re)connects show a
+            // dimmed snapshot of that camera so switching never cuts to black.
             if let frame = player.currentFrame {
                 Image(nsImage: frame)
                     .resizable()
@@ -51,7 +48,31 @@ struct CameraStreamMainView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
                     .ignoresSafeArea()
-            } else if player.isStreaming {
+            } else if let snapshot = player.snapshots.image(for: activeCamera?.id) {
+                // Camera still with live status: spinner while connecting,
+                // error card once the attempt has failed.
+                ZStack {
+                    Image(nsImage: snapshot)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                        .ignoresSafeArea()
+                        .overlay(Color.black.opacity(0.45).ignoresSafeArea())
+
+                    if player.isStreaming || player.isConnecting {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .tint(.white)
+                            Text("Connecting to stream…")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.white.opacity(0.85))
+                        }
+                    } else if player.errorMessage != nil {
+                        streamErrorCard
+                    }
+                }
+            } else if player.isStreaming || player.isConnecting {
                 VStack(spacing: 12) {
                     ProgressView()
                         .tint(.white)
@@ -60,28 +81,8 @@ struct CameraStreamMainView: View {
                         .foregroundColor(.white.opacity(0.8))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let error = player.errorMessage {
-                VStack(spacing: 12) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 32))
-                        .foregroundColor(.orange)
-                    Text("Stream Disconnected")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.8))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 20)
-
-                    Button("Reconnect") {
-                        if let cam = activeCamera {
-                            player.setURLAndPlay(cam.rtspURL)
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if player.errorMessage != nil {
+                streamErrorCard
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "video.slash")
@@ -98,109 +99,166 @@ struct CameraStreamMainView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            // 2. Overlay Top Floating Control Bar (Clean Glass HUD)
-            VStack {
-                topFloatingBar
-                    .padding(.horizontal, 16)
-                    .padding(.top, 14)
+            // Fixed controls stay in the titlebar area; camera metadata is separated below.
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer(minLength: 0)
+                    settingsButton
+                        .padding(.top, 20)
+                        .padding(.trailing, 20)
+                }
 
-                Spacer()
+                Spacer(minLength: 0)
+
+                HStack {
+                    cameraInfoCard
+                        .padding(.leading, 14)
+                        .padding(.bottom, 14)
+                    Spacer(minLength: 0)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .opacity(vm.isPlayerUIVisible ? 1 : 0)
+            .allowsHitTesting(vm.isPlayerUIVisible)
+            .ignoresSafeArea(.container, edges: .top)
 
-            // 3. Right Floating Carousel (Always visible camera switcher)
+            // 3. Right Floating Carousel (Always available camera switcher)
             HStack {
                 Spacer()
                 cameraThumbnailCarousel
-                    .padding(.trailing, 16)
+                    .padding(.trailing, 24)
+                    .padding(.vertical, 24)
+            }
+            .opacity(vm.isPlayerUIVisible ? 1 : 0)
+            .allowsHitTesting(vm.isPlayerUIVisible)
+        }
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.18)) {
+                vm.isPlayerUIVisible = hovering
             }
         }
         .sheet(isPresented: $vm.showingAddEditSheet) {
             cameraFormSheet
         }
         .onAppear {
-            if let cam = activeCamera {
-                vm.selectedCameraID = cam.id
-                player.setURLAndPlay(cam.rtspURL)
-            }
+            hub.startStreamIfNeeded(in: appState.cameras)
         }
-        .onDisappear {
-            player.stop()
-        }
-        .onChange(of: vm.selectedCameraID) { _, newID in
+        .onChange(of: hub.selectedCameraID) { _, newID in
             if let id = newID, let cam = appState.cameras.first(where: { $0.id == id }) {
-                player.setURLAndPlay(cam.rtspURL)
+                hub.select(cam)
             }
         }
         .onChange(of: appState.cameras) { _, newCameras in
-            if vm.selectedCameraID == nil || !newCameras.contains(where: { $0.id == vm.selectedCameraID }) {
-                if let first = newCameras.first {
-                    vm.selectedCameraID = first.id
-                    player.setURLAndPlay(first.rtspURL)
-                }
+            guard let camera = hub.activeCamera(in: newCameras) else {
+                player.stop()
+                return
+            }
+            if hub.selectedCameraID != camera.id {
+                hub.select(camera)
+            } else {
+                player.setURLAndPlay(camera.rtspURL)
             }
         }
     }
 
-    // Top Floating Glass HUD Bar
-    private var topFloatingBar: some View {
-        HStack(spacing: 12) {
-            // Space for native macOS traffic lights (Close, Minimize, Zoom)
-            Spacer().frame(width: 64)
-
-            // Current Camera Badge
-            if let cam = activeCamera {
-                HStack(spacing: 8) {
-                    Text(cam.name)
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-
-                    HStack(spacing: 5) {
-                        Circle()
-                            .fill(player.currentFrame != nil ? Color.green : Color.red)
-                            .frame(width: 7, height: 7)
-                        Text(player.currentFrame != nil ? player.fpsText : "OFFLINE")
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.white.opacity(0.85))
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Capsule())
+    private var streamErrorCard: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 32))
+                .foregroundColor(.orange)
+            Text("Stream Disconnected")
+                .font(.headline)
+                .foregroundColor(.white)
+            if let error = player.errorMessage {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.8))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+            }
+            Button("Reconnect") {
+                if let cam = activeCamera {
+                    player.setURLAndPlay(cam.rtspURL)
                 }
             }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 
-            Spacer()
-
-            // Action Buttons
-            HStack(spacing: 8) {
-                if let cam = activeCamera {
-                    Button {
-                        vm.openEditSheet(for: cam)
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "slider.horizontal.3")
-                            Text("Settings")
-                        }
-                        .font(.system(size: 12, weight: .medium))
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.white)
-                    .help("Edit this camera")
-                }
-
+    private var settingsButton: some View {
+        Group {
+            if let cam = activeCamera {
                 Button {
-                    vm.openAddSheet()
+                    vm.openEditSheet(for: cam)
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                        Text("Add")
-                    }
-                    .font(.system(size: 12, weight: .medium))
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(width: 26, height: 26)
+                        .background(.ultraThinMaterial, in: Circle())
                 }
-                .buttonStyle(.borderedProminent)
-                .help("Add new camera")
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.circle)
+                .tint(.white)
+                .help("Edit this camera")
+                .accessibilityLabel("Camera settings")
             }
         }
+    }
+
+    private var cameraInfoCard: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            if let cam = activeCamera {
+                Text(cam.name)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 7, height: 7)
+                    Text(statusText)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.95))
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.black.opacity(0.22))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.28), radius: 8, y: 3)
+    }
+
+    private var statusColor: Color {
+        if player.isConnecting { return .orange }
+        if player.currentFrame != nil { return .green }
+        return .red
+    }
+
+    private var statusText: String {
+        if player.isConnecting { return "CONNECTING" }
+        if player.currentFrame != nil { return player.fpsText }
+        return "OFFLINE"
+    }
+
+    /// Last known frame for a camera: live frame for the active camera,
+    /// otherwise the stored snapshot.
+    private func thumbnailImage(for cam: CameraConfig) -> NSImage? {
+        if cam.id == activeCamera?.id, let frame = player.currentFrame {
+            return frame
+        }
+        return player.snapshots.image(for: cam.id)
     }
 
     // Floating Camera Switcher Thumbnails (Always available)
@@ -209,15 +267,15 @@ struct CameraStreamMainView: View {
             ForEach(appState.cameras) { cam in
                 let isSelected = (cam.id == (activeCamera?.id ?? UUID()))
                 Button {
-                    vm.selectedCameraID = cam.id
+                    hub.select(cam)
                 } label: {
                     ZStack(alignment: .bottom) {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .fill(Color.black.opacity(0.85))
                             .frame(width: 96, height: 64)
 
-                        if isSelected, let frame = player.currentFrame {
-                            Image(nsImage: frame)
+                        if let thumb = thumbnailImage(for: cam) {
+                            Image(nsImage: thumb)
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                                 .frame(width: 96, height: 64)
@@ -277,8 +335,11 @@ struct CameraStreamMainView: View {
             .help("Add another camera")
         }
         .padding(8)
-        .background(Color.black.opacity(0.35))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+        }
     }
 
     // Clean, perfectly proportioned Camera Settings Modal
@@ -346,13 +407,12 @@ struct CameraStreamMainView: View {
                     if let existing = vm.editingCamera {
                         appState.updateCamera(id: existing.id, name: name, rtspURL: url)
                         if activeCamera?.id == existing.id {
-                            player.setURLAndPlay(url)
+                            hub.select(cameraID: existing.id, rtspURL: url)
                         }
                     } else {
                         appState.addCamera(name: name, rtspURL: url)
                         if let newCam = appState.cameras.last {
-                            vm.selectedCameraID = newCam.id
-                            player.setURLAndPlay(url)
+                            hub.select(newCam)
                         }
                     }
                     vm.showingAddEditSheet = false

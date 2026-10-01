@@ -4,11 +4,12 @@ A modern, native macOS camera streaming application designed for Apple Silicon. 
 
 ---
 
-## Key Features
-
-- **Menu Bar Quick Access:** Toggle the live camera window instantly from the system menu bar.
+- **Menu Bar Quick Access:** The menu bar keeps a simple camera icon. Click it to open a floating dock-mode preview above other apps; use **Open App Window** for long viewing.
+- **Native macOS Layout:** The camera name, FPS badge, and icon-only Settings control stay in one titlebar-aligned row with Apple-style spacing.
+- **MicDrop-style Dock Panel:** Rounded material surface with live status, selected-camera preview, close, open-window, and quit actions. It stays visible until explicitly closed.
+- **Simple App Icon:** A minimal home-camera icon is included in the native `.icns` bundle.
 - **Full-Bleed 16:9 Video Canvas:** Clean, borderless video window adhering to modern macOS Human Interface Guidelines.
-- **Apple Home-Style Camera Switcher:** Floating thumbnail carousel on the right edge allows switching between cameras in one click.
+- **Apple Home-Style Camera Switcher:** Floating thumbnail carousel on the right edge allows switching between cameras in one click; use **New** to add a camera.
 - **In-App Camera Management:** Configure camera name and RTSP stream URL directly in the app. Full credentials and stream URLs remain hidden from video viewports.
 - **Ultra-Low Latency Playback:** Built-in MJPEG pipe stream processor powered by FFmpeg.
 - **Privacy First:** All configurations and camera credentials are kept local on your Mac. No cloud connection or external tracking.
@@ -31,14 +32,17 @@ A modern, native macOS camera streaming application designed for Apple Silicon. 
 Clone the repository and run the build script:
 
 ```bash
-git clone https://github.com/your-username/HomeMonitor.git
+git clone https://github.com/leolionart/HomeMonitor.git
 cd HomeMonitor
 
-# Run the build script
-bash scripts/build_app.sh
+# Run the build script (creates build/HomeMonitor.app)
+./scripts/build_app.sh
+
+# Optional: Package DMG and ZIP distribution
+./scripts/package_dmg.sh
 
 # Copy to Applications
-cp -R /tmp/HomeMonitor-build/HomeMonitor.app /Applications/
+cp -R build/HomeMonitor.app /Applications/
 ```
 
 Launch `HomeMonitor` from `/Applications` or Spotlight.
@@ -48,7 +52,7 @@ Launch `HomeMonitor` from `/Applications` or Spotlight.
 ## Adding Your Camera
 
 1. Launch HomeMonitor.
-2. Click **Add Cam** (or the `+` button in the camera thumbnail carousel).
+2. Click **New** in the camera thumbnail carousel.
 3. Provide a friendly name (e.g. *Gate*, *Garage*, *Front Door*) and your RTSP URL:
    ```text
    rtsp://user:password@192.168.1.100:554/stream

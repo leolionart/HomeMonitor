@@ -2,6 +2,51 @@ import AppKit
 import Foundation
 import SwiftUI
 
+/// Keeps the last decoded frame per camera (as JPEG bytes) so thumbnails and
+/// the main view can show a snapshot instead of black while a camera is not
+/// streaming. JPEG data is decoded lazily on demand instead of retaining an
+/// NSImage per camera.
+@MainActor
+final class CameraSnapshotStore: ObservableObject {
+    @Published private(set) var revision: Int = 0
+
+    private struct Entry {
+        var data: Data
+        var capturedAt: Date
+    }
+
+    private var entries: [UUID: Entry] = [:]
+    private static let minimumWriteInterval: TimeInterval = 1.0
+
+    /// Throttled per camera so sequential snapshot captures never drop.
+    func record(_ jpeg: Data, for cameraID: UUID?) {
+        guard let cameraID else { return }
+        let now = Date()
+        if let existing = entries[cameraID],
+           now.timeIntervalSince(existing.capturedAt) < Self.minimumWriteInterval {
+            return
+        }
+        entries[cameraID] = Entry(data: jpeg, capturedAt: now)
+        revision &+= 1
+    }
+
+    /// Seconds since the stored snapshot for a camera, or nil if none.
+    func age(of cameraID: UUID, now: Date = Date()) -> TimeInterval? {
+        entries[cameraID].map { now.timeIntervalSince($0.capturedAt) }
+    }
+
+    func forget(_ cameraID: UUID) {
+        guard entries[cameraID] != nil else { return }
+        entries[cameraID] = nil
+        revision &+= 1
+    }
+
+    func image(for cameraID: UUID?) -> NSImage? {
+        guard let cameraID, let entry = entries[cameraID] else { return nil }
+        return NSImage(data: entry.data)
+    }
+}
+
 @MainActor
 final class RTSPStreamPlayer: ObservableObject {
     @Published var currentFrame: NSImage?
@@ -9,11 +54,22 @@ final class RTSPStreamPlayer: ObservableObject {
     @Published var errorMessage: String?
     @Published var fpsText: String = "0 fps"
 
+    /// True while a stream is (re)connecting: covers both the ffmpeg restart
+    /// gap on camera switches and silent mid-stream freezes.
+    @Published private(set) var isConnecting: Bool = false
+
+    let snapshots = CameraSnapshotStore()
+
+    /// Camera whose stream is currently active; set by StreamHub before play.
+    var currentCameraID: UUID?
+
     private var process: Process?
     private var outputPipe: Pipe?
     private var streamTask: Task<Void, Never>?
     private var frameCount: Int = 0
     private var lastFpsCalculation: Date = Date()
+    private var lastFrameAt: Date?
+    private var stallCheckTask: Task<Void, Never>?
 
     var rtspURL: String
 
@@ -32,8 +88,15 @@ final class RTSPStreamPlayer: ObservableObject {
             return
         }
 
-        stop()
+        // Keep the last frame on screen while the new stream spins up.
+        stop(clearFrame: false)
+        // If we already have a still of the *new* camera, show that while
+        // connecting instead of the old camera's last frame.
+        if snapshots.image(for: currentCameraID) != nil {
+            currentFrame = nil
+        }
         self.rtspURL = url
+        isConnecting = true
         start()
     }
 
@@ -42,11 +105,14 @@ final class RTSPStreamPlayer: ObservableObject {
         guard !isStreaming else { return }
         isStreaming = true
         errorMessage = nil
-
+        fpsText = "0 fps"
+        frameCount = 0
+        lastFpsCalculation = Date()
         let ffmpegPath = "/opt/homebrew/bin/ffmpeg"
         guard FileManager.default.isExecutableFile(atPath: ffmpegPath) else {
             errorMessage = "FFmpeg not found at /opt/homebrew/bin/ffmpeg"
             isStreaming = false
+            isConnecting = false
             return
         }
 
@@ -71,14 +137,19 @@ final class RTSPStreamPlayer: ObservableObject {
             self.process = proc
             self.outputPipe = pipe
             readMJPEGStream(pipe: pipe)
+            startStallCheck()
         } catch {
             errorMessage = "Failed to launch ffmpeg: \(error.localizedDescription)"
             isStreaming = false
+            isConnecting = false
         }
     }
 
-    func stop() {
+    func stop(clearFrame: Bool = true) {
         isStreaming = false
+        isConnecting = false
+        stallCheckTask?.cancel()
+        stallCheckTask = nil
         streamTask?.cancel()
         streamTask = nil
         if let proc = process, proc.isRunning {
@@ -86,7 +157,9 @@ final class RTSPStreamPlayer: ObservableObject {
         }
         process = nil
         outputPipe = nil
-        currentFrame = nil
+        if clearFrame {
+            currentFrame = nil
+        }
     }
 
     private func readMJPEGStream(pipe: Pipe) {
@@ -118,7 +191,7 @@ final class RTSPStreamPlayer: ObservableObject {
                     buffer.removeSubrange(0..<frameLength)
 
                     if let image = NSImage(data: frameData) {
-                        await self?.updateFrame(image)
+                        await self?.updateFrame(image, jpeg: frameData)
                     }
                 }
             }
@@ -127,8 +200,11 @@ final class RTSPStreamPlayer: ObservableObject {
         }
     }
 
-    private func updateFrame(_ image: NSImage) {
+    private func updateFrame(_ image: NSImage, jpeg: Data) {
         self.currentFrame = image
+        self.lastFrameAt = Date()
+        self.isConnecting = false
+        self.snapshots.record(jpeg, for: self.currentCameraID)
         self.frameCount += 1
         let now = Date()
         let interval = now.timeIntervalSince(lastFpsCalculation)
@@ -140,10 +216,25 @@ final class RTSPStreamPlayer: ObservableObject {
         }
     }
 
-    private func handleStreamTerminated() {
-        if isStreaming {
-            isStreaming = false
-            errorMessage = "Stream disconnected"
+    /// Detects mid-stream stalls (frames stop arriving without ffmpeg
+    /// exiting) so the connecting indicator reflects reality.
+    private func startStallCheck() {
+        stallCheckTask?.cancel()
+        stallCheckTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard let self, self.isStreaming else { return }
+                if let last = self.lastFrameAt, Date().timeIntervalSince(last) > 1.0 {
+                    self.isConnecting = true
+                }
+            }
         }
+    }
+
+    private func handleStreamTerminated() {
+        guard isStreaming else { return }
+        isStreaming = false
+        isConnecting = false
+        errorMessage = "Stream disconnected"
     }
 }
