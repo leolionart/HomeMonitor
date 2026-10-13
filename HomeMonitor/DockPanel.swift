@@ -57,6 +57,19 @@ struct DockPanelView: View {
                 cameraSelector
             }
             Spacer(minLength: 4)
+            Button {
+                player.toggleMute()
+            } label: {
+                Image(systemName: player.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(player.isMuted ? Color.secondary : Color.green)
+                    .frame(width: 24, height: 24)
+                    .background(Color.primary.opacity(0.10), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help(player.isMuted ? "Unmute audio" : "Mute audio")
+            .accessibilityLabel(player.isMuted ? "Unmute audio" : "Mute audio")
+
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.system(size: 11, weight: .bold))

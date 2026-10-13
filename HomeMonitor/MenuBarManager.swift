@@ -49,12 +49,20 @@ final class MenuBarManager: NSObject {
         let open = menu.addItem(withTitle: "Open App Window", action: #selector(openMainWindow), keyEquivalent: "")
         open.target = self
         menu.addItem(.separator())
+        let isMuted = StreamHub.shared.player.isMuted
+        let muteItem = menu.addItem(withTitle: isMuted ? "Unmute Audio" : "Mute Audio", action: #selector(toggleMute), keyEquivalent: "m")
+        muteItem.target = self
+        menu.addItem(.separator())
         let quit = menu.addItem(withTitle: "Quit HomeMonitor", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
 
         statusItem?.menu = menu
         statusItem?.button?.performClick(nil)
         statusItem?.menu = nil
+    }
+
+    @objc private func toggleMute() {
+        StreamHub.shared.player.toggleMute()
     }
 
     @objc private func openMainWindow() {

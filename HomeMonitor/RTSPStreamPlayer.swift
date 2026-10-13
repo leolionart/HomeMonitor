@@ -54,6 +54,9 @@ final class RTSPStreamPlayer: ObservableObject {
     @Published var errorMessage: String?
     @Published var fpsText: String = "0 fps"
 
+    private static let mutedDefaultsKey = "HomeMonitor.IsMuted"
+    @Published var isMuted: Bool = UserDefaults.standard.object(forKey: "HomeMonitor.IsMuted") as? Bool ?? true
+
     /// True while a stream is (re)connecting: covers both the ffmpeg restart
     /// gap on camera switches and silent mid-stream freezes.
     @Published private(set) var isConnecting: Bool = false
@@ -64,6 +67,7 @@ final class RTSPStreamPlayer: ObservableObject {
     var currentCameraID: UUID?
 
     private var process: Process?
+    private var audioProcess: Process?
     private var outputPipe: Pipe?
     private var streamTask: Task<Void, Never>?
     private var frameCount: Int = 0
@@ -72,6 +76,15 @@ final class RTSPStreamPlayer: ObservableObject {
     private var stallCheckTask: Task<Void, Never>?
 
     var rtspURL: String
+
+    static func findExecutable(named name: String) -> String? {
+        let candidates = [
+            "/opt/homebrew/bin/\(name)",
+            "/usr/local/bin/\(name)",
+            "/usr/bin/\(name)"
+        ]
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+    }
 
     init(rtspURL: String = "") {
         self.rtspURL = rtspURL
@@ -108,9 +121,8 @@ final class RTSPStreamPlayer: ObservableObject {
         fpsText = "0 fps"
         frameCount = 0
         lastFpsCalculation = Date()
-        let ffmpegPath = "/opt/homebrew/bin/ffmpeg"
-        guard FileManager.default.isExecutableFile(atPath: ffmpegPath) else {
-            errorMessage = "FFmpeg not found at /opt/homebrew/bin/ffmpeg"
+        guard let ffmpegPath = Self.findExecutable(named: "ffmpeg") else {
+            errorMessage = "FFmpeg not found in standard paths"
             isStreaming = false
             isConnecting = false
             return
@@ -130,14 +142,16 @@ final class RTSPStreamPlayer: ObservableObject {
             "pipe:1"
         ]
         proc.standardOutput = pipe
-        proc.standardError = Pipe()
-
+        proc.standardError = FileHandle.nullDevice
         do {
             try proc.run()
             self.process = proc
             self.outputPipe = pipe
             readMJPEGStream(pipe: pipe)
             startStallCheck()
+            if !isMuted {
+                startAudio()
+            }
         } catch {
             errorMessage = "Failed to launch ffmpeg: \(error.localizedDescription)"
             isStreaming = false
@@ -148,6 +162,7 @@ final class RTSPStreamPlayer: ObservableObject {
     func stop(clearFrame: Bool = true) {
         isStreaming = false
         isConnecting = false
+        stopAudio()
         stallCheckTask?.cancel()
         stallCheckTask = nil
         streamTask?.cancel()
@@ -159,6 +174,47 @@ final class RTSPStreamPlayer: ObservableObject {
         outputPipe = nil
         if clearFrame {
             currentFrame = nil
+        }
+    }
+
+    func startAudio() {
+        guard !isMuted, !rtspURL.isEmpty else { return }
+        stopAudio()
+        guard let ffplayPath = Self.findExecutable(named: "ffplay") else { return }
+
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: ffplayPath)
+        proc.arguments = [
+            "-nodisp",
+            "-loglevel", "quiet",
+            "-rtsp_transport", "tcp",
+            rtspURL
+        ]
+        proc.standardInput = FileHandle.nullDevice
+        proc.standardOutput = FileHandle.nullDevice
+        proc.standardError = FileHandle.nullDevice
+        do {
+            try proc.run()
+            self.audioProcess = proc
+        } catch {
+            print("[Audio] Failed to launch ffplay: \(error.localizedDescription)")
+        }
+    }
+
+    func stopAudio() {
+        if let proc = audioProcess, proc.isRunning {
+            proc.terminate()
+        }
+        audioProcess = nil
+    }
+
+    func toggleMute() {
+        isMuted.toggle()
+        UserDefaults.standard.set(isMuted, forKey: Self.mutedDefaultsKey)
+        if isMuted {
+            stopAudio()
+        } else {
+            startAudio()
         }
     }
 
@@ -195,8 +251,9 @@ final class RTSPStreamPlayer: ObservableObject {
                     }
                 }
             }
-
-            await self?.handleStreamTerminated()
+            if !Task.isCancelled {
+                await self?.handleStreamTerminated()
+            }
         }
     }
 
@@ -232,6 +289,7 @@ final class RTSPStreamPlayer: ObservableObject {
     }
 
     private func handleStreamTerminated() {
+        stopAudio()
         guard isStreaming else { return }
         isStreaming = false
         isConnecting = false

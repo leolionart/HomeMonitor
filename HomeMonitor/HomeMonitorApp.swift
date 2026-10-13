@@ -82,6 +82,7 @@ final class HomeMonitorAppDelegate: NSObject, NSApplicationDelegate, NSWindowDel
         // Hide instead of destroy: keeps the scene alive, drops the Dock icon.
         sender.orderOut(nil)
         updateActivationPolicy()
+        StreamHub.shared.player.stopAudio()
         return false
     }
 
@@ -106,7 +107,9 @@ struct HomeMonitorApp: App {
     var body: some Scene {
         WindowGroup("HomeMonitor", id: "main-camera-window") {
             CameraStreamMainView(appState: appState)
-                .frame(width: 860, height: 484) // 16:9 native aspect ratio without black bars
+                .frame(minWidth: 640, minHeight: 360)
+                .frame(idealWidth: 860, idealHeight: 484)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(
                     WindowAccessor { window in
                         window.titlebarAppearsTransparent = true
@@ -151,5 +154,8 @@ struct HomeMonitorApp: App {
         }
 
         NSApp.activate(ignoringOtherApps: true)
+        if !StreamHub.shared.player.isMuted {
+            StreamHub.shared.player.startAudio()
+        }
     }
 }

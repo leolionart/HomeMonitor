@@ -35,102 +35,85 @@ struct CameraStreamMainView: View {
     }
 
     var body: some View {
-        ZStack {
-            // Background is pure pitch black for camera canvas
-            Color.black.ignoresSafeArea()
+        GeometryReader { geo in
+            ZStack {
+                // Background is pure pitch black for camera canvas
+                Color.black.ignoresSafeArea()
 
-            // 1. Video layer: live frame; while a stream (re)connects show a
-            // dimmed snapshot of that camera so switching never cuts to black.
-            if let frame = player.currentFrame {
-                Image(nsImage: frame)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-                    .ignoresSafeArea()
-            } else if let snapshot = player.snapshots.image(for: activeCamera?.id) {
-                // Camera still with live status: spinner while connecting,
-                // error card once the attempt has failed.
-                ZStack {
-                    Image(nsImage: snapshot)
+                // 1. Video layer: live frame; while a stream (re)connects show a
+                // dimmed snapshot of that camera so switching never cuts to black.
+                if let frame = player.currentFrame {
+                    Image(nsImage: frame)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
                         .ignoresSafeArea()
-                        .overlay(Color.black.opacity(0.45).ignoresSafeArea())
+                } else if let snapshot = player.snapshots.image(for: activeCamera?.id) {
+                    // Camera still with live status: spinner while connecting,
+                    // error card once the attempt has failed.
+                    ZStack {
+                        Image(nsImage: snapshot)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
+                            .ignoresSafeArea()
+                            .overlay(Color.black.opacity(0.45).ignoresSafeArea())
 
-                    if player.isStreaming || player.isConnecting {
-                        VStack(spacing: 12) {
-                            ProgressView()
-                                .tint(.white)
-                            Text("Connecting to stream…")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.white.opacity(0.85))
+                        if player.isStreaming || player.isConnecting {
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                    .tint(.white)
+                                Text("Connecting to stream…")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.85))
+                            }
+                        } else if player.errorMessage != nil {
+                            streamErrorCard
                         }
-                    } else if player.errorMessage != nil {
-                        streamErrorCard
                     }
-                }
-            } else if player.isStreaming || player.isConnecting {
-                VStack(spacing: 12) {
-                    ProgressView()
-                        .tint(.white)
-                    Text("Connecting to stream...")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.white.opacity(0.8))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if player.errorMessage != nil {
-                streamErrorCard
-            } else {
-                VStack(spacing: 12) {
-                    Image(systemName: "video.slash")
-                        .font(.system(size: 40))
-                        .foregroundColor(.white.opacity(0.4))
-                    Text("No Camera Selected")
-                        .font(.headline)
-                        .foregroundColor(.white.opacity(0.6))
-                    Button("Add Camera") {
-                        vm.openAddSheet()
+                } else if player.isStreaming || player.isConnecting {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .tint(.white)
+                        Text("Connecting to stream...")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
                     }
-                    .buttonStyle(.borderedProminent)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if player.errorMessage != nil {
+                    streamErrorCard
+                } else {
+                    VStack(spacing: 12) {
+                        Image(systemName: "video.slash")
+                            .font(.system(size: 40))
+                            .foregroundColor(.white.opacity(0.4))
+                        Text("No Camera Selected")
+                            .font(.headline)
+                            .foregroundColor(.white.opacity(0.6))
+                        Button("Add Camera") {
+                            vm.openAddSheet()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                // 2. Bottom Controls Island (Camera name, status, audio toggle, settings)
+                cameraInfoCard
+                    .padding(.leading, 18)
+                    .padding(.bottom, 18)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .opacity(vm.isPlayerUIVisible ? 1.0 : 0.82)
+
+                // 3. Right Floating Carousel (Always available camera switcher)
+                cameraThumbnailCarousel(availableHeight: geo.size.height)
+                    .padding(.trailing, 18)
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                    .opacity(vm.isPlayerUIVisible ? 1.0 : 0.82)
             }
-
-            // Fixed controls stay in the titlebar area; camera metadata is separated below.
-            VStack(spacing: 0) {
-                HStack {
-                    Spacer(minLength: 0)
-                    settingsButton
-                        .padding(.top, 20)
-                        .padding(.trailing, 20)
-                }
-
-                Spacer(minLength: 0)
-
-                HStack {
-                    cameraInfoCard
-                        .padding(.leading, 14)
-                        .padding(.bottom, 14)
-                    Spacer(minLength: 0)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .opacity(vm.isPlayerUIVisible ? 1 : 0)
-            .allowsHitTesting(vm.isPlayerUIVisible)
-            .ignoresSafeArea(.container, edges: .top)
-
-            // 3. Right Floating Carousel (Always available camera switcher)
-            HStack {
-                Spacer()
-                cameraThumbnailCarousel
-                    .padding(.trailing, 24)
-                    .padding(.vertical, 24)
-            }
-            .opacity(vm.isPlayerUIVisible ? 1 : 0)
-            .allowsHitTesting(vm.isPlayerUIVisible)
         }
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.18)) {
@@ -142,11 +125,6 @@ struct CameraStreamMainView: View {
         }
         .onAppear {
             hub.startStreamIfNeeded(in: appState.cameras)
-        }
-        .onChange(of: hub.selectedCameraID) { _, newID in
-            if let id = newID, let cam = appState.cameras.first(where: { $0.id == id }) {
-                hub.select(cam)
-            }
         }
         .onChange(of: appState.cameras) { _, newCameras in
             guard let camera = hub.activeCamera(in: newCameras) else {
@@ -186,56 +164,80 @@ struct CameraStreamMainView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var settingsButton: some View {
-        Group {
+    private var cameraInfoCard: some View {
+        HStack(spacing: 12) {
             if let cam = activeCamera {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(cam.name)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 7, height: 7)
+                        Text(statusText)
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.95))
+                            .lineLimit(1)
+                    }
+                }
+
+                Divider()
+                    .frame(height: 22)
+                    .overlay(Color.white.opacity(0.2))
+
+                // Mute / Unmute Audio Toggle
+                Button {
+                    player.toggleMute()
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(player.isMuted ? 0.08 : 0.20))
+                            .frame(width: 28, height: 28)
+                        Image(systemName: player.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(player.isMuted ? .white.opacity(0.7) : .green)
+                    }
+                    .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("m", modifiers: [])
+                .help(player.isMuted ? "Unmute audio (M)" : "Mute audio (M)")
+                .accessibilityLabel(player.isMuted ? "Unmute audio" : "Mute audio")
+
+                // Camera Settings
                 Button {
                     vm.openEditSheet(for: cam)
                 } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .frame(width: 26, height: 26)
-                        .background(.ultraThinMaterial, in: Circle())
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.10))
+                            .frame(width: 28, height: 28)
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.85))
+                    }
+                    .contentShape(Circle())
                 }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.circle)
-                .tint(.white)
-                .help("Edit this camera")
+                .buttonStyle(.plain)
+                .help("Camera settings")
                 .accessibilityLabel("Camera settings")
             }
         }
-    }
-
-    private var cameraInfoCard: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            if let cam = activeCamera {
-                Text(cam.name)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 7, height: 7)
-                    Text(statusText)
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.95))
-                        .lineLimit(1)
-                }
-            }
-        }
         .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.black.opacity(0.22))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+        .padding(.vertical, 8)
+        .background {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.black.opacity(0.25))
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+            }
         }
         .shadow(color: .black.opacity(0.28), radius: 8, y: 3)
     }
@@ -261,74 +263,58 @@ struct CameraStreamMainView: View {
         return player.snapshots.image(for: cam.id)
     }
 
+    private func carouselScrollHeight(for availableHeight: CGFloat) -> CGFloat {
+        let count = CGFloat(appState.cameras.count)
+        let itemHeight: CGFloat = 64
+        let spacing: CGFloat = 8
+        let contentHeight = max(itemHeight, count * itemHeight + max(0, count - 1) * spacing)
+        // Leave room for window vertical padding (32) + New button (36) + spacing (8) + card padding (16) = 92pt
+        let maxAllowed = max(136, availableHeight - 110)
+        return min(contentHeight, maxAllowed)
+    }
+
     // Floating Camera Switcher Thumbnails (Always available)
-    private var cameraThumbnailCarousel: some View {
-        VStack(spacing: 10) {
-            ForEach(appState.cameras) { cam in
-                let isSelected = (cam.id == (activeCamera?.id ?? UUID()))
-                Button {
-                    hub.select(cam)
-                } label: {
-                    ZStack(alignment: .bottom) {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.black.opacity(0.85))
-                            .frame(width: 96, height: 64)
-
-                        if let thumb = thumbnailImage(for: cam) {
-                            Image(nsImage: thumb)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 96, height: 64)
-                                .clipped()
-                                .cornerRadius(10)
-                        } else {
-                            VStack(spacing: 4) {
-                                Image(systemName: "video.fill")
-                                    .font(.system(size: 18))
-                                    .foregroundColor(.white.opacity(0.7))
+    private func cameraThumbnailCarousel(availableHeight: CGFloat) -> some View {
+        VStack(spacing: 8) {
+            if !appState.cameras.isEmpty {
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: true) {
+                        VStack(spacing: 8) {
+                            ForEach(appState.cameras) { cam in
+                                cameraThumbnailButton(for: cam)
+                                    .id(cam.id)
                             }
-                            .frame(width: 96, height: 64)
                         }
-
-                        // Camera Label Overlay
-                        Text(cam.name)
-                            .font(.system(size: 10, weight: .semibold))
-                            .lineLimit(1)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .frame(maxWidth: .infinity)
-                            .background(.ultraThinMaterial)
+                        .padding(.vertical, 2)
                     }
-                    .frame(width: 96, height: 64)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(isSelected ? Color.white : Color.white.opacity(0.3), lineWidth: isSelected ? 2.5 : 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.5), radius: 5, x: 0, y: 2)
+                    .frame(height: carouselScrollHeight(for: availableHeight))
+                    .onChange(of: activeCamera?.id) { _, newID in
+                        if let newID {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                proxy.scrollTo(newID, anchor: .center)
+                            }
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
             }
 
             // Quick Add Camera thumbnail slot
             Button {
                 vm.openAddSheet()
             } label: {
-                VStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(.white.opacity(0.8))
+                        .font(.system(size: 14, weight: .semibold))
                     Text("New")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.8))
+                        .font(.system(size: 11, weight: .semibold))
                 }
-                .frame(width: 96, height: 48)
-                .background(.ultraThinMaterial)
+                .foregroundColor(.white.opacity(0.85))
+                .frame(width: 96, height: 36)
+                .background(Color.white.opacity(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)
@@ -339,6 +325,79 @@ struct CameraStreamMainView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 3)
+    }
+
+    private func cameraThumbnailButton(for cam: CameraConfig) -> some View {
+        let isSelected = (cam.id == (activeCamera?.id ?? UUID()))
+        return Button {
+            hub.select(cam)
+        } label: {
+            ZStack(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.black.opacity(0.85))
+                    .frame(width: 96, height: 64)
+
+                if let thumb = thumbnailImage(for: cam) {
+                    Image(nsImage: thumb)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 96, height: 64)
+                        .clipped()
+                        .cornerRadius(10)
+                } else {
+                    VStack(spacing: 4) {
+                        Image(systemName: "video.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                    .frame(width: 96, height: 64)
+                }
+
+                // Camera Label Overlay
+                Text(cam.name)
+                    .font(.system(size: 10, weight: .semibold))
+                    .lineLimit(1)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .frame(maxWidth: .infinity)
+                    .background(.ultraThinMaterial)
+            }
+            .frame(width: 96, height: 64)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(isSelected ? Color.white : Color.white.opacity(0.25), lineWidth: isSelected ? 2.5 : 1)
+            )
+            .shadow(color: Color.black.opacity(0.4), radius: 4, x: 0, y: 2)
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button {
+                hub.select(cam)
+            } label: {
+                Label("Switch to Camera", systemImage: "play.fill")
+            }
+
+            Divider()
+
+            Button {
+                vm.openEditSheet(for: cam)
+            } label: {
+                Label("Edit Camera", systemImage: "pencil")
+            }
+
+            if appState.cameras.count > 1 {
+                Button(role: .destructive) {
+                    if let idx = appState.cameras.firstIndex(where: { $0.id == cam.id }) {
+                        appState.removeCameras(at: IndexSet(integer: idx))
+                    }
+                } label: {
+                    Label("Delete Camera", systemImage: "trash")
+                }
+            }
         }
     }
 
