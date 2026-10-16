@@ -57,10 +57,10 @@ Because HomeMonitor is an open-source project and is ad-hoc signed without a pai
 #### Option A: One-line Terminal Command (Recommended)
 Open Terminal and run:
 ```bash
-xattr -cr /Applications/HomeMonitor.app
+xattr -c /Applications/HomeMonitor.app
 ```
+*(or `xattr -d com.apple.quarantine /Applications/HomeMonitor.app`)*  
 This clears the quarantine flag. You can now launch HomeMonitor from Launchpad, Spotlight, or Applications normally.
-
 #### Option B: GUI Bypass (No Terminal)
 1. In Finder, open your **Applications** folder.
 2. **Right-click** (or **Control-click**) `HomeMonitor.app` and select **Open**.
@@ -77,7 +77,7 @@ You can also download, install, and configure HomeMonitor in one command:
 command -v ffmpeg >/dev/null 2>&1 || brew install ffmpeg && \
 curl -fsSL https://github.com/leolionart/HomeMonitor/releases/latest/download/HomeMonitor.zip -o /tmp/HomeMonitor.zip && \
 unzip -q -o /tmp/HomeMonitor.zip -d /Applications/ && \
-xattr -cr /Applications/HomeMonitor.app && \
+xattr -c /Applications/HomeMonitor.app && \
 rm -f /tmp/HomeMonitor.zip && \
 open /Applications/HomeMonitor.app
 ```
