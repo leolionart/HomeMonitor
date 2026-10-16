@@ -7,5 +7,4 @@
 - **Apple Home-Style Camera Switcher:** Seamless switching between multiple RTSP streams with real-time thumbnail carousel.
 - **Ultra-Low Latency RTSP Engine:** Powered by FFmpeg MJPEG streaming with automated reconnection and stream health monitoring.
 - **Audio Control & In-App Management:** Integrated audio mute toggle, secure local credential storage, and quick camera addition.
-- **Automated DMG & ZIP Distribution:** Built-in packaging pipeline with direct DMG disk image downloads.
-- **Gatekeeper Bypass Guide:** Step-by-step instructions for installing open-source ad-hoc signed builds on macOS Sonoma and Sequoia without quarantine errors.
+- **UI Hover Controls Restored:** Camera settings and playback controls return to the original hover-reveal layout with stable titlebar and bottom-card alignment.
