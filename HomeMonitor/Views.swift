@@ -35,56 +35,53 @@ struct CameraStreamMainView: View {
     }
 
     var body: some View {
-        ZStack {
-            // 1. Video surface: fills background
-            CameraVideoSurface(
-                currentFrame: player.currentFrame,
-                snapshot: player.snapshots.image(for: activeCamera?.id),
-                isStreaming: player.isStreaming,
-                isConnecting: player.isConnecting,
-                errorMessage: player.errorMessage,
-                onAddCamera: { vm.openAddSheet() },
-                onReconnect: {
-                    if let cam = activeCamera {
-                        player.setURLAndPlay(cam.rtspURL)
+        GeometryReader { windowGeo in
+            ZStack {
+                // 1. Video surface: strictly locked to windowGeo.size so .aspectRatio(contentMode: .fill)
+                // NEVER overflows or expands the parent ZStack beyond the physical window!
+                CameraVideoSurface(
+                    size: windowGeo.size,
+                    currentFrame: player.currentFrame,
+                    snapshot: player.snapshots.image(for: activeCamera?.id),
+                    isStreaming: player.isStreaming,
+                    isConnecting: player.isConnecting,
+                    errorMessage: player.errorMessage,
+                    onAddCamera: { vm.openAddSheet() },
+                    onReconnect: {
+                        if let cam = activeCamera {
+                            player.setURLAndPlay(cam.rtspURL)
+                        }
                     }
-                }
-            )
+                )
+                .frame(width: windowGeo.size.width, height: windowGeo.size.height)
 
-            // 2. Full-window pointer tracker for hover effects
-            Color.clear
-                .contentShape(Rectangle())
-                .onHover { hovering in
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        vm.isPlayerUIVisible = hovering
+                // 2. Full-window pointer tracker for hover effects
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onHover { hovering in
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            vm.isPlayerUIVisible = hovering
+                        }
                     }
-                }
 
-            // 3. Floating Overlay Layer (Clamped inside window bounds, padding top 28pt for macOS traffic lights)
-            GeometryReader { geo in
-                ZStack(alignment: .topLeading) {
-                    // Bottom-left controls island (Camera name, status, audio, settings)
-                    VStack {
-                        Spacer()
-                        cameraInfoCard
-                            .padding(.leading, 20)
-                            .padding(.bottom, 24)
-                    }
-                    .frame(width: geo.size.width, height: geo.size.height, alignment: .bottomLeading)
+                // 3. Bottom-left controls island (Camera name, status, audio, settings)
+                cameraInfoCard
+                    .padding(.leading, 20)
+                    .padding(.bottom, 20)
+                    .frame(width: windowGeo.size.width, height: windowGeo.size.height, alignment: .bottomLeading)
+                    .opacity(vm.isPlayerUIVisible ? 1.0 : 0.85)
 
-                    // Right carousel: Centered vertically in available window height
-                    HStack {
-                        Spacer()
-                        cameraThumbnailCarousel(availableHeight: geo.size.height - 56)
-                            .padding(.trailing, 20)
-                    }
-                    .frame(width: geo.size.width, height: geo.size.height, alignment: .trailing)
-                }
+                // 4. Right carousel: Strictly centered at the exact vertical middle (windowGeo.size.height / 2)
+                cameraThumbnailCarousel(availableHeight: windowGeo.size.height)
+                    .padding(.trailing, 20)
+                    .frame(width: windowGeo.size.width, height: windowGeo.size.height, alignment: .trailing)
+                    .opacity(vm.isPlayerUIVisible ? 1.0 : 0.85)
             }
-            .padding(.top, 28)
-            .opacity(vm.isPlayerUIVisible ? 1.0 : 0.85)
+            .frame(width: windowGeo.size.width, height: windowGeo.size.height)
+            .clipped()
+            .environment(\.colorScheme, .dark)
         }
-        .clipped()
+        .ignoresSafeArea()
         .sheet(isPresented: $vm.showingAddEditSheet) {
             cameraFormSheet
         }
@@ -105,6 +102,7 @@ struct CameraStreamMainView: View {
     }
 
 private struct CameraVideoSurface: View {
+    let size: CGSize
     let currentFrame: NSImage?
     let snapshot: NSImage?
     let isStreaming: Bool
@@ -121,17 +119,16 @@ private struct CameraVideoSurface: View {
                 Image(nsImage: frame)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(width: size.width, height: size.height)
                     .clipped()
             } else if let snapshot {
                 ZStack {
                     Image(nsImage: snapshot)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(width: size.width, height: size.height)
                         .clipped()
                         .overlay(Color.black.opacity(0.45))
-
                     if isStreaming || isConnecting {
                         VStack(spacing: 12) {
                             ProgressView()
@@ -295,13 +292,15 @@ private struct CameraVideoSurface: View {
     }
 
     private func carouselScrollHeight(for availableHeight: CGFloat) -> CGFloat {
-        let count = CGFloat(appState.cameras.count)
+        let count = max(1, appState.cameras.count)
         let itemHeight: CGFloat = 64
         let spacing: CGFloat = 8
-        let contentHeight = max(itemHeight, count * itemHeight + max(0, count - 1) * spacing)
-        // Leave room for New button (36pt) + spacing (8pt) + padding (16pt) + breathing room
-        let maxAllowed = max(136, availableHeight - 80)
-        return min(contentHeight, maxAllowed)
+        // Reserve at least 156pt for top/bottom window margins (50pt each) + New button (36pt) + padding (20pt)
+        let maxScrollHeight = max(itemHeight, availableHeight - 156)
+        // Snap to an exact integer number of visible camera items so thumbnails are never awkwardly cut in half
+        let maxVisibleItems = max(1, Int((maxScrollHeight + spacing) / (itemHeight + spacing)))
+        let visibleItems = min(count, maxVisibleItems)
+        return CGFloat(visibleItems) * itemHeight + CGFloat(max(0, visibleItems - 1)) * spacing + 4
     }
 
     // Floating Camera Switcher Thumbnails (Always available)
