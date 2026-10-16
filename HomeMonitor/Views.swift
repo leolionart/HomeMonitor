@@ -37,68 +37,31 @@ struct CameraStreamMainView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                // Background is pure pitch black for camera canvas
-                Color.black.ignoresSafeArea()
-
-                // 1. Video layer: live frame; while a stream (re)connects show a
-                // dimmed snapshot of that camera so switching never cuts to black.
-                if let frame = player.currentFrame {
-                    Image(nsImage: frame)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
-                        .ignoresSafeArea()
-                } else if let snapshot = player.snapshots.image(for: activeCamera?.id) {
-                    ZStack {
-                        Image(nsImage: snapshot)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .clipped()
-                            .ignoresSafeArea()
-                            .overlay(Color.black.opacity(0.45).ignoresSafeArea())
-
-                        if player.isStreaming || player.isConnecting {
-                            VStack(spacing: 12) {
-                                ProgressView()
-                                    .tint(.white)
-                                Text("Connecting to stream…")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.85))
-                            }
-                        } else if player.errorMessage != nil {
-                            streamErrorCard
+                // 1. Video layer (rendered in separate view hierarchy to prevent parent state re-invalidation)
+                CameraVideoSurface(
+                    currentFrame: player.currentFrame,
+                    snapshot: player.snapshots.image(for: activeCamera?.id),
+                    isStreaming: player.isStreaming,
+                    isConnecting: player.isConnecting,
+                    errorMessage: player.errorMessage,
+                    onAddCamera: { vm.openAddSheet() },
+                    onReconnect: {
+                        if let cam = activeCamera {
+                            player.setURLAndPlay(cam.rtspURL)
                         }
                     }
-                } else if player.isStreaming || player.isConnecting {
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .tint(.white)
-                        Text("Connecting to stream...")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(.white.opacity(0.8))
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if player.errorMessage != nil {
-                    streamErrorCard
-                } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "video.slash")
-                            .font(.system(size: 40))
-                            .foregroundColor(.white.opacity(0.4))
-                        Text("No Camera Selected")
-                            .font(.headline)
-                            .foregroundColor(.white.opacity(0.6))
-                        Button("Add Camera") {
-                            vm.openAddSheet()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                )
 
-                // 2. Bottom Controls Island (Camera name, status, audio toggle, settings)
+                // 2. Invisible full-surface mouse tracking layer that never re-creates
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onHover { hovering in
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            vm.isPlayerUIVisible = hovering
+                        }
+                    }
+
+                // 3. Bottom Controls Island (Camera name, status, audio toggle, settings)
                 // Stays at bottomLeading so it NEVER overlaps the right-side carousel.
                 cameraInfoCard
                     .padding(.leading, 18)
@@ -106,20 +69,19 @@ struct CameraStreamMainView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                     .opacity(vm.isPlayerUIVisible ? 1.0 : 0.0)
                     .allowsHitTesting(vm.isPlayerUIVisible)
+                    .onHover { hovering in
+                        if hovering { vm.isPlayerUIVisible = true }
+                    }
 
-                // 3. Right Floating Carousel (Always available camera switcher)
+                // 4. Right Floating Carousel (Centered vertically on the right edge)
                 cameraThumbnailCarousel(availableHeight: geo.size.height)
                     .padding(.trailing, 18)
-                    .padding(.vertical, 16)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
                     .opacity(vm.isPlayerUIVisible ? 1.0 : 0.0)
                     .allowsHitTesting(vm.isPlayerUIVisible)
-            }
-            .contentShape(Rectangle())
-            .onHover { hovering in
-                withAnimation(.easeOut(duration: 0.18)) {
-                    vm.isPlayerUIVisible = hovering
-                }
+                    .onHover { hovering in
+                        if hovering { vm.isPlayerUIVisible = true }
+                    }
             }
         }
         .sheet(isPresented: $vm.showingAddEditSheet) {
@@ -141,7 +103,77 @@ struct CameraStreamMainView: View {
         }
     }
 
-    private var streamErrorCard: some View {
+private struct CameraVideoSurface: View {
+    let currentFrame: NSImage?
+    let snapshot: NSImage?
+    let isStreaming: Bool
+    let isConnecting: Bool
+    let errorMessage: String?
+    let onAddCamera: () -> Void
+    let onReconnect: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            if let frame = currentFrame {
+                Image(nsImage: frame)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                    .ignoresSafeArea()
+            } else if let snapshot {
+                ZStack {
+                    Image(nsImage: snapshot)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                        .ignoresSafeArea()
+                        .overlay(Color.black.opacity(0.45).ignoresSafeArea())
+
+                    if isStreaming || isConnecting {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .tint(.white)
+                            Text("Connecting to stream…")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.white.opacity(0.85))
+                        }
+                    } else if errorMessage != nil {
+                        errorCard
+                    }
+                }
+            } else if isStreaming || isConnecting {
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .tint(.white)
+                    Text("Connecting to stream...")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if errorMessage != nil {
+                errorCard
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "video.slash")
+                        .font(.system(size: 40))
+                        .foregroundColor(.white.opacity(0.4))
+                    Text("No Camera Selected")
+                        .font(.headline)
+                        .foregroundColor(.white.opacity(0.6))
+                    Button("Add Camera", action: onAddCamera)
+                        .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .allowsHitTesting(currentFrame == nil)
+    }
+
+    private var errorCard: some View {
         VStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 32))
@@ -149,22 +181,20 @@ struct CameraStreamMainView: View {
             Text("Stream Disconnected")
                 .font(.headline)
                 .foregroundColor(.white)
-            if let error = player.errorMessage {
+            if let error = errorMessage {
                 Text(error)
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.8))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 20)
             }
-            Button("Reconnect") {
-                if let cam = activeCamera {
-                    player.setURLAndPlay(cam.rtspURL)
-                }
-            }
-            .buttonStyle(.borderedProminent)
+            Button("Reconnect", action: onReconnect)
+                .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+}
+
 
     private var cameraInfoCard: some View {
         HStack(spacing: 12) {
@@ -270,8 +300,8 @@ struct CameraStreamMainView: View {
         let itemHeight: CGFloat = 64
         let spacing: CGFloat = 8
         let contentHeight = max(itemHeight, count * itemHeight + max(0, count - 1) * spacing)
-        // Leave room for window vertical padding (32) + New button (36) + spacing (8) + card padding (16) = 92pt
-        let maxAllowed = max(136, availableHeight - 110)
+        // Leave room for top and bottom margins (min 40pt each) + New button (36) + spacing (8) + card padding (16) = 140pt
+        let maxAllowed = max(136, availableHeight - 140)
         return min(contentHeight, maxAllowed)
     }
 
