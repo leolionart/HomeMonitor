@@ -98,28 +98,22 @@ struct CameraStreamMainView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
-                // Keep the camera status, audio and settings controls as one
-                // bottom-right island; do not let the spacer alter alignment.
-                HStack(spacing: 8) {
-                    cameraInfoCard
-                    audioButton
-                    settingsButton
-                }
-                .padding(.trailing, 18)
-                .padding(.bottom, 18)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .opacity(vm.isPlayerUIVisible ? 1 : 0)
-                .allowsHitTesting(vm.isPlayerUIVisible)
-                .zIndex(2)
+                // 2. Bottom Controls Island (Camera name, status, audio toggle, settings)
+                // Stays at bottomLeading so it NEVER overlaps the right-side carousel.
+                cameraInfoCard
+                    .padding(.leading, 18)
+                    .padding(.bottom, 18)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .opacity(vm.isPlayerUIVisible ? 1.0 : 0.0)
+                    .allowsHitTesting(vm.isPlayerUIVisible)
 
-                HStack {
-                    Spacer()
-                    cameraThumbnailCarousel(availableHeight: geo.size.height)
-                        .padding(.trailing, 24)
-                        .padding(.vertical, 24)
-                }
-                .opacity(vm.isPlayerUIVisible ? 1 : 0)
-                .allowsHitTesting(vm.isPlayerUIVisible)
+                // 3. Right Floating Carousel (Always available camera switcher)
+                cameraThumbnailCarousel(availableHeight: geo.size.height)
+                    .padding(.trailing, 18)
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                    .opacity(vm.isPlayerUIVisible ? 1.0 : 0.0)
+                    .allowsHitTesting(vm.isPlayerUIVisible)
             }
             .contentShape(Rectangle())
             .onHover { hovering in
@@ -172,76 +166,80 @@ struct CameraStreamMainView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var audioButton: some View {
-        Button {
-            player.toggleMute()
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(Color.white.opacity(player.isMuted ? 0.08 : 0.20))
-                    .frame(width: 28, height: 28)
-                Image(systemName: player.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(player.isMuted ? .white.opacity(0.7) : .green)
-            }
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .keyboardShortcut("m", modifiers: [])
-        .help(player.isMuted ? "Unmute audio (M)" : "Mute audio (M)")
-        .accessibilityLabel(player.isMuted ? "Unmute audio" : "Mute audio")
-    }
-
-    private var settingsButton: some View {
-        Group {
+    private var cameraInfoCard: some View {
+        HStack(spacing: 12) {
             if let cam = activeCamera {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(cam.name)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 7, height: 7)
+                        Text(statusText)
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.95))
+                            .lineLimit(1)
+                    }
+                }
+
+                Divider()
+                    .frame(height: 22)
+                    .overlay(Color.white.opacity(0.2))
+
+                // Mute / Unmute Audio Toggle
+                Button {
+                    player.toggleMute()
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(player.isMuted ? 0.08 : 0.20))
+                            .frame(width: 28, height: 28)
+                        Image(systemName: player.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(player.isMuted ? .white.opacity(0.7) : .green)
+                    }
+                    .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("m", modifiers: [])
+                .help(player.isMuted ? "Unmute audio (M)" : "Mute audio (M)")
+                .accessibilityLabel(player.isMuted ? "Unmute audio" : "Mute audio")
+
+                // Camera Settings
                 Button {
                     vm.openEditSheet(for: cam)
                 } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .frame(width: 26, height: 26)
-                        .background(.ultraThinMaterial, in: Circle())
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.10))
+                            .frame(width: 28, height: 28)
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.85))
+                    }
+                    .contentShape(Circle())
                 }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.circle)
-                .tint(.white)
-                .help("Edit this camera")
+                .buttonStyle(.plain)
+                .help("Camera settings")
                 .accessibilityLabel("Camera settings")
             }
         }
-    }
-
-    private var cameraInfoCard: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            if let cam = activeCamera {
-                Text(cam.name)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 7, height: 7)
-                    Text(statusText)
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.95))
-                        .lineLimit(1)
-                }
-            }
-        }
         .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.black.opacity(0.22))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+        .padding(.vertical, 8)
+        .background {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.black.opacity(0.25))
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+            }
         }
         .shadow(color: .black.opacity(0.28), radius: 8, y: 3)
     }
