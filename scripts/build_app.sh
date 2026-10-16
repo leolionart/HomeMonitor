@@ -10,7 +10,7 @@ APP_MACOS="${APP_CONTENTS}/MacOS"
 APP_RESOURCES="${APP_CONTENTS}/Resources"
 SDK_PATH="${SDK_PATH:-$(xcrun --show-sdk-path)}"
 CACHE_PATH="${CACHE_PATH:-/tmp/clang-cache}"
-APP_VERSION="${APP_VERSION:-${VERSION:-2.0.0}}"
+APP_VERSION="${APP_VERSION:-${VERSION:-2.1.0}}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 
 echo "=== 1. Preparing directories ==="

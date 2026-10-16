@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 APP_DIR="${1:-${PROJECT_DIR}/build/HomeMonitor.app}"
 OUTPUT_DIR="${2:-$(dirname "${APP_DIR}")}"
-APP_VERSION="${APP_VERSION:-${VERSION:-2.0.0}}"
+APP_VERSION="${APP_VERSION:-${VERSION:-2.1.0}}"
 
 if [ ! -d "${APP_DIR}" ]; then
   echo "Error: App bundle not found at ${APP_DIR}"

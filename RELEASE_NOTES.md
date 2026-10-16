@@ -1,11 +1,8 @@
-# Release Notes - HomeMonitor v2.0.0
+# Release Notes - HomeMonitor v2.1.0
 
-## What's New in v2.0.0
+## What's New in v2.1.0
 
-- **Universal macOS Binary:** Native support for both Apple Silicon (M1/M2/M3/M4) and Intel Macs (`arm64` + `x86_64`).
-- **Menu Bar Quick Access & Dock Panel:** Floating MicDrop-style camera preview accessible right from the macOS status bar.
-- **Apple Home-Style Camera Switcher:** Seamless switching between multiple RTSP streams with real-time thumbnail carousel.
-- **Ultra-Low Latency RTSP Engine:** Powered by FFmpeg MJPEG streaming with automated reconnection and stream health monitoring.
-- **Audio Control & In-App Management:** Integrated audio mute toggle, secure local credential storage, and quick camera addition.
-- **Locked Window Geometry & Centered Carousel:** Fixed video frame aspect-fill expansion so bottom-left camera controls and the vertically centered right-hand thumbnail carousel remain stably anchored across all window sizes and stream resolutions.
-- **Automated DMG & ZIP Distribution:** Built-in packaging pipeline with direct DMG disk image downloads and macOS Gatekeeper (`xattr -c`) installation instructions.
+- **Locked Window Geometry & Aspect-Fill Stability:** Fixed an issue where 16:9 / 4:3 video feeds with `.aspectRatio(contentMode: .fill)` expanded the parent `ZStack` beyond the physical window height, preventing bottom-left controls and the right carousel from drifting downward.
+- **Symmetrically Centered Camera Carousel:** Right-side camera switcher is now strictly centered along the vertical midpoint of the window and snaps to whole camera thumbnails without cutting items in half.
+- **Persistent Dark Glass Controls:** Bottom-left camera status, FPS indicator, audio mute toggle, and Settings button stay clearly visible and accessible during live 30fps stream playback.
+- **Automated DMG & ZIP Distribution:** Universal macOS binary (`arm64` + `x86_64`) with direct download links and macOS Sonoma/Sequoia Gatekeeper (`xattr -c`) installation instructions.
