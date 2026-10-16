@@ -98,18 +98,19 @@ struct CameraStreamMainView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
-                // Camera status, audio and settings stay together at bottom-right.
+                // Keep the camera status, audio and settings controls as one
+                // bottom-right island; do not let the spacer alter alignment.
                 HStack(spacing: 8) {
-                    Spacer(minLength: 0)
                     cameraInfoCard
                     audioButton
                     settingsButton
-                        .padding(.trailing, 18)
                 }
+                .padding(.trailing, 18)
                 .padding(.bottom, 18)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 .opacity(vm.isPlayerUIVisible ? 1 : 0)
                 .allowsHitTesting(vm.isPlayerUIVisible)
+                .zIndex(2)
 
                 HStack {
                     Spacer()
