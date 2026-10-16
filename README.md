@@ -1,8 +1,7 @@
 # HomeMonitor for macOS
 
 A modern, native macOS camera streaming application designed for Apple Silicon. HomeMonitor allows you to stream RTSP camera feeds with ultra-low latency, switch seamlessly between multiple cameras, and quickly access feeds directly from the macOS Menu Bar.
-
-![Uploading image.png…]()
+<img width="390" height="272" alt="file-ae4c242fb41b84d2ae5540e8e80b5d7b" src="https://github.com/user-attachments/assets/45c7eeab-c688-4b8b-bd62-fb402d5b8701" />
 
 
 ---
