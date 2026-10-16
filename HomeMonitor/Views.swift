@@ -35,62 +35,51 @@ struct CameraStreamMainView: View {
     }
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                // 1. Video surface: pure visual feed, never intercepts pointer hits
-                CameraVideoSurface(
-                    currentFrame: player.currentFrame,
-                    snapshot: player.snapshots.image(for: activeCamera?.id),
-                    isStreaming: player.isStreaming,
-                    isConnecting: player.isConnecting,
-                    errorMessage: player.errorMessage,
-                    onAddCamera: { vm.openAddSheet() },
-                    onReconnect: {
-                        if let cam = activeCamera {
-                            player.setURLAndPlay(cam.rtspURL)
-                        }
+        ZStack {
+            // 1. Video surface: pure visual feed
+            CameraVideoSurface(
+                currentFrame: player.currentFrame,
+                snapshot: player.snapshots.image(for: activeCamera?.id),
+                isStreaming: player.isStreaming,
+                isConnecting: player.isConnecting,
+                errorMessage: player.errorMessage,
+                onAddCamera: { vm.openAddSheet() },
+                onReconnect: {
+                    if let cam = activeCamera {
+                        player.setURLAndPlay(cam.rtspURL)
                     }
-                )
+                }
+            )
 
-                // 2. Full-window pointer tracker: stays active across all stream updates
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onHover { hovering in
-                        withAnimation(.easeOut(duration: 0.18)) {
-                            vm.isPlayerUIVisible = hovering
-                        }
+            // 2. Full-window pointer tracker for hover effects
+            Color.clear
+                .contentShape(Rectangle())
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        vm.isPlayerUIVisible = hovering
                     }
+                }
 
-                // 3. Bottom Controls Island (Camera name, status, audio toggle, settings)
-                // Subtle idle appearance (opacity 0.72) and full reveal on hover (1.0).
-                // NEVER completely disappears so it is always accessible even while streaming!
-                cameraInfoCard
-                    .padding(.leading, 18)
-                    .padding(.bottom, 18)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                    .opacity(vm.isPlayerUIVisible ? 1.0 : 0.72)
-                    .allowsHitTesting(true)
-                    .onHover { hovering in
-                        if hovering { vm.isPlayerUIVisible = true }
-                    }
+            // 3. Bottom Controls Island (Camera name, status, audio toggle, settings)
+            // Anchored directly to bottomLeading. ALWAYS VISIBLE (opacity 0.82 idle, 1.0 on hover).
+            // Never hidden even when video frames stream at 30fps!
+            cameraInfoCard
+                .padding(.leading, 20)
+                .padding(.bottom, 20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .opacity(vm.isPlayerUIVisible ? 1.0 : 0.85)
+                .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
 
-                // 4. Right Floating Carousel (Strictly centered vertically with equal top/bottom margins)
+            // 4. Right Floating Carousel (Centered exactly at the vertical middle of the window)
+            GeometryReader { geo in
                 HStack(spacing: 0) {
                     Spacer()
-                    VStack(spacing: 0) {
-                        Spacer(minLength: 20)
-                        cameraThumbnailCarousel(availableHeight: geo.size.height)
-                        Spacer(minLength: 20)
-                    }
-                    .padding(.trailing, 18)
+                    cameraThumbnailCarousel(availableHeight: geo.size.height)
+                        .padding(.trailing, 20)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .opacity(vm.isPlayerUIVisible ? 1.0 : 0.72)
-                .allowsHitTesting(true)
-                .onHover { hovering in
-                    if hovering { vm.isPlayerUIVisible = true }
-                }
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .trailing)
             }
+            .opacity(vm.isPlayerUIVisible ? 1.0 : 0.85)
         }
         .sheet(isPresented: $vm.showingAddEditSheet) {
             cameraFormSheet
@@ -308,8 +297,8 @@ private struct CameraVideoSurface: View {
         let itemHeight: CGFloat = 64
         let spacing: CGFloat = 8
         let contentHeight = max(itemHeight, count * itemHeight + max(0, count - 1) * spacing)
-        // Allow up to ~65% of screen height so the card has ample, perfectly symmetrical top and bottom margins
-        let maxAllowed = max(136, availableHeight * 0.65 - 60)
+        // Leave at least 80pt top and bottom margins so it never crowds the screen edges
+        let maxAllowed = max(136, availableHeight - 160)
         return min(contentHeight, maxAllowed)
     }
 
