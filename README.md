@@ -29,9 +29,64 @@ A modern, native macOS camera streaming application designed for Apple Silicon. 
 
 ---
 
-## Building and Installing
+## Download & Installation
 
-Clone the repository and run the build script:
+### 1. Download
+
+Pre-built Universal binaries (supporting both Apple Silicon M1/M2/M3/M4 and Intel Macs) are available on GitHub Releases:
+
+- **[Download HomeMonitor.dmg (Disk Image)](https://github.com/leolionart/HomeMonitor/releases/latest/download/HomeMonitor.dmg)** *(Recommended)*
+- **[Download HomeMonitor.zip (Archive)](https://github.com/leolionart/HomeMonitor/releases/latest/download/HomeMonitor.zip)**
+- **[View All Releases](https://github.com/leolionart/HomeMonitor/releases)**
+
+### 2. Standard Installation via DMG
+
+1. Download and open `HomeMonitor.dmg`.
+2. Drag `HomeMonitor.app` into your **Applications** folder.
+3. Ensure `ffmpeg` is installed (`brew install ffmpeg`).
+
+### 3. macOS Gatekeeper Note ("App is damaged and can't be opened" / Move to Trash)
+
+Because HomeMonitor is an open-source project and is ad-hoc signed without a paid Apple Developer Certificate ($99/year), macOS Gatekeeper will attach a quarantine flag to the downloaded app and may display:
+
+> *"HomeMonitor.app is damaged and can’t be opened. You should move it to the Trash."*  
+> or *"Apple cannot verify that HomeMonitor is free of malware."*
+
+**The app is not damaged.** To allow macOS to open it normally, use either of these methods:
+
+#### Option A: One-line Terminal Command (Recommended)
+Open Terminal and run:
+```bash
+xattr -cr /Applications/HomeMonitor.app
+```
+This clears the quarantine flag. You can now launch HomeMonitor from Launchpad, Spotlight, or Applications normally.
+
+#### Option B: GUI Bypass (No Terminal)
+1. In Finder, open your **Applications** folder.
+2. **Right-click** (or **Control-click**) `HomeMonitor.app` and select **Open**.
+3. In the warning prompt, click **Open**.
+4. *If no Open prompt appears:* Open **System Settings** → **Privacy & Security** → scroll down to the **Security** section, and click **Open Anyway** next to the HomeMonitor notice.
+
+---
+
+### 4. One-Line Automated Install (Terminal)
+
+You can also download, install, and configure HomeMonitor in one command:
+
+```bash
+command -v ffmpeg >/dev/null 2>&1 || brew install ffmpeg && \
+curl -fsSL https://github.com/leolionart/HomeMonitor/releases/latest/download/HomeMonitor.zip -o /tmp/HomeMonitor.zip && \
+unzip -q -o /tmp/HomeMonitor.zip -d /Applications/ && \
+xattr -cr /Applications/HomeMonitor.app && \
+rm -f /tmp/HomeMonitor.zip && \
+open /Applications/HomeMonitor.app
+```
+
+---
+
+## Building from Source
+
+If you prefer building from source, clone the repository and run:
 
 ```bash
 git clone https://github.com/leolionart/HomeMonitor.git
@@ -48,8 +103,6 @@ cp -R build/HomeMonitor.app /Applications/
 ```
 
 Launch `HomeMonitor` from `/Applications` or Spotlight.
-
----
 
 ## Adding Your Camera
 
