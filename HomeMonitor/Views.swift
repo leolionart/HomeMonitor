@@ -36,7 +36,7 @@ struct CameraStreamMainView: View {
 
     var body: some View {
         ZStack {
-            // 1. Video surface: pure visual feed
+            // 1. Video surface: fills background
             CameraVideoSurface(
                 currentFrame: player.currentFrame,
                 snapshot: player.snapshots.image(for: activeCamera?.id),
@@ -60,27 +60,31 @@ struct CameraStreamMainView: View {
                     }
                 }
 
-            // 3. Bottom Controls Island (Camera name, status, audio toggle, settings)
-            // Anchored directly to bottomLeading. ALWAYS VISIBLE (opacity 0.82 idle, 1.0 on hover).
-            // Never hidden even when video frames stream at 30fps!
-            cameraInfoCard
-                .padding(.leading, 20)
-                .padding(.bottom, 20)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                .opacity(vm.isPlayerUIVisible ? 1.0 : 0.85)
-                .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
-
-            // 4. Right Floating Carousel (Centered exactly at the vertical middle of the window)
+            // 3. Floating Overlay Layer (Clamped inside window bounds, padding top 28pt for macOS traffic lights)
             GeometryReader { geo in
-                HStack(spacing: 0) {
-                    Spacer()
-                    cameraThumbnailCarousel(availableHeight: geo.size.height)
-                        .padding(.trailing, 20)
+                ZStack(alignment: .topLeading) {
+                    // Bottom-left controls island (Camera name, status, audio, settings)
+                    VStack {
+                        Spacer()
+                        cameraInfoCard
+                            .padding(.leading, 20)
+                            .padding(.bottom, 24)
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height, alignment: .bottomLeading)
+
+                    // Right carousel: Centered vertically in available window height
+                    HStack {
+                        Spacer()
+                        cameraThumbnailCarousel(availableHeight: geo.size.height - 56)
+                            .padding(.trailing, 20)
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height, alignment: .trailing)
                 }
-                .frame(width: geo.size.width, height: geo.size.height, alignment: .trailing)
             }
+            .padding(.top, 28)
             .opacity(vm.isPlayerUIVisible ? 1.0 : 0.85)
         }
+        .clipped()
         .sheet(isPresented: $vm.showingAddEditSheet) {
             cameraFormSheet
         }
@@ -111,7 +115,7 @@ private struct CameraVideoSurface: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.black
 
             if let frame = currentFrame {
                 Image(nsImage: frame)
@@ -119,7 +123,6 @@ private struct CameraVideoSurface: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
-                    .ignoresSafeArea()
             } else if let snapshot {
                 ZStack {
                     Image(nsImage: snapshot)
@@ -127,8 +130,7 @@ private struct CameraVideoSurface: View {
                         .aspectRatio(contentMode: .fill)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
-                        .ignoresSafeArea()
-                        .overlay(Color.black.opacity(0.45).ignoresSafeArea())
+                        .overlay(Color.black.opacity(0.45))
 
                     if isStreaming || isConnecting {
                         VStack(spacing: 12) {
@@ -297,8 +299,8 @@ private struct CameraVideoSurface: View {
         let itemHeight: CGFloat = 64
         let spacing: CGFloat = 8
         let contentHeight = max(itemHeight, count * itemHeight + max(0, count - 1) * spacing)
-        // Leave at least 80pt top and bottom margins so it never crowds the screen edges
-        let maxAllowed = max(136, availableHeight - 160)
+        // Leave room for New button (36pt) + spacing (8pt) + padding (16pt) + breathing room
+        let maxAllowed = max(136, availableHeight - 80)
         return min(contentHeight, maxAllowed)
     }
 
