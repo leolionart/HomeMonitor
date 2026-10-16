@@ -2,12 +2,17 @@
 
 A modern, native macOS camera streaming application designed for Apple Silicon. HomeMonitor allows you to stream RTSP camera feeds with ultra-low latency, switch seamlessly between multiple cameras, and quickly access feeds directly from the macOS Menu Bar.
 
-<img width="390" height="272" alt="file-ae4c242fb41b84d2ae5540e8e80b5d7b" src="https://github.com/user-attachments/assets/45c7eeab-c688-4b8b-bd62-fb402d5b8701" />
+<p align="center">
+  <img width="860" alt="HomeMonitor Main Window" src="https://screenshot.naai.studio/snapzy/1792143565-9615e60a-snapzy_2026-10-16_16-39-23_488.png" />
+</p>
+<p align="center">
+  <img width="390" height="272" alt="HomeMonitor Menu Bar Dock Preview" src="https://github.com/user-attachments/assets/45c7eeab-c688-4b8b-bd62-fb402d5b8701" />
+</p>
 
 ---
 
 - **Menu Bar Quick Access:** The menu bar keeps a simple camera icon. Click it to open a floating dock-mode preview above other apps; use **Open App Window** for long viewing.
-- **Native macOS Layout:** The camera name, FPS badge, and icon-only Settings control stay in one titlebar-aligned row with Apple-style spacing.
+- **Native macOS Layout:** Floating bottom-left camera status, FPS badge, audio mute toggle, and Settings control with a vertically centered camera switcher carousel on the right.
 - **MicDrop-style Dock Panel:** Rounded material surface with live status, selected-camera preview, close, open-window, and quit actions. It stays visible until explicitly closed.
 - **Simple App Icon:** A minimal home-camera icon is included in the native `.icns` bundle.
 - **Full-Bleed 16:9 Video Canvas:** Clean, borderless video window adhering to modern macOS Human Interface Guidelines.
