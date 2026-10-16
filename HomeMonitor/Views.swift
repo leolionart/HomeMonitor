@@ -98,21 +98,16 @@ struct CameraStreamMainView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
-                // Controls appear only while the pointer is over the video surface.
-                HStack(alignment: .bottom, spacing: 10) {
-                    cameraInfoCard
-                        .padding(.leading, 18)
-
+                // Camera status, audio and settings stay together at bottom-right.
+                HStack(spacing: 8) {
                     Spacer(minLength: 0)
-
-                    HStack(spacing: 8) {
-                        audioButton
-                        settingsButton
-                    }
-                    .padding(.trailing, 18)
+                    cameraInfoCard
+                    audioButton
+                    settingsButton
+                        .padding(.trailing, 18)
                 }
                 .padding(.bottom, 18)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 .opacity(vm.isPlayerUIVisible ? 1 : 0)
                 .allowsHitTesting(vm.isPlayerUIVisible)
 
