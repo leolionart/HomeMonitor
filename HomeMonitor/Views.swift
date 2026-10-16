@@ -37,7 +37,7 @@ struct CameraStreamMainView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                // 1. Video layer (rendered in separate view hierarchy to prevent parent state re-invalidation)
+                // 1. Video surface: pure visual feed, never intercepts pointer hits
                 CameraVideoSurface(
                     currentFrame: player.currentFrame,
                     snapshot: player.snapshots.image(for: activeCamera?.id),
@@ -52,7 +52,7 @@ struct CameraStreamMainView: View {
                     }
                 )
 
-                // 2. Invisible full-surface mouse tracking layer that never re-creates
+                // 2. Full-window pointer tracker: stays active across all stream updates
                 Color.clear
                     .contentShape(Rectangle())
                     .onHover { hovering in
@@ -62,26 +62,34 @@ struct CameraStreamMainView: View {
                     }
 
                 // 3. Bottom Controls Island (Camera name, status, audio toggle, settings)
-                // Stays at bottomLeading so it NEVER overlaps the right-side carousel.
+                // Subtle idle appearance (opacity 0.72) and full reveal on hover (1.0).
+                // NEVER completely disappears so it is always accessible even while streaming!
                 cameraInfoCard
                     .padding(.leading, 18)
                     .padding(.bottom, 18)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                    .opacity(vm.isPlayerUIVisible ? 1.0 : 0.0)
-                    .allowsHitTesting(vm.isPlayerUIVisible)
+                    .opacity(vm.isPlayerUIVisible ? 1.0 : 0.72)
+                    .allowsHitTesting(true)
                     .onHover { hovering in
                         if hovering { vm.isPlayerUIVisible = true }
                     }
 
-                // 4. Right Floating Carousel (Centered vertically on the right edge)
-                cameraThumbnailCarousel(availableHeight: geo.size.height)
-                    .padding(.trailing, 18)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-                    .opacity(vm.isPlayerUIVisible ? 1.0 : 0.0)
-                    .allowsHitTesting(vm.isPlayerUIVisible)
-                    .onHover { hovering in
-                        if hovering { vm.isPlayerUIVisible = true }
+                // 4. Right Floating Carousel (Strictly centered vertically with equal top/bottom margins)
+                HStack(spacing: 0) {
+                    Spacer()
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 20)
+                        cameraThumbnailCarousel(availableHeight: geo.size.height)
+                        Spacer(minLength: 20)
                     }
+                    .padding(.trailing, 18)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .opacity(vm.isPlayerUIVisible ? 1.0 : 0.72)
+                .allowsHitTesting(true)
+                .onHover { hovering in
+                    if hovering { vm.isPlayerUIVisible = true }
+                }
             }
         }
         .sheet(isPresented: $vm.showingAddEditSheet) {
@@ -300,8 +308,8 @@ private struct CameraVideoSurface: View {
         let itemHeight: CGFloat = 64
         let spacing: CGFloat = 8
         let contentHeight = max(itemHeight, count * itemHeight + max(0, count - 1) * spacing)
-        // Leave room for top and bottom margins (min 40pt each) + New button (36) + spacing (8) + card padding (16) = 140pt
-        let maxAllowed = max(136, availableHeight - 140)
+        // Allow up to ~65% of screen height so the card has ample, perfectly symmetrical top and bottom margins
+        let maxAllowed = max(136, availableHeight * 0.65 - 60)
         return min(contentHeight, maxAllowed)
     }
 
