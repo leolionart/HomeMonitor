@@ -7,4 +7,4 @@
 - **Apple Home-Style Camera Switcher:** Seamless switching between multiple RTSP streams with real-time thumbnail carousel.
 - **Ultra-Low Latency RTSP Engine:** Powered by FFmpeg MJPEG streaming with automated reconnection and stream health monitoring.
 - **Audio Control & In-App Management:** Integrated audio mute toggle, secure local credential storage, and quick camera addition.
-- **UI Hover Controls Restored:** Camera settings and playback controls return to the original hover-reveal layout with stable titlebar and bottom-card alignment.
+- **UI Hover Controls Restored:** Camera settings and audio controls return to the bottom-right hover-reveal layout with stable camera status alignment.

@@ -98,28 +98,23 @@ struct CameraStreamMainView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
-                // Controls stay in their original titlebar/bottom positions and
-                // appear only while the pointer is over the video surface.
-                VStack(spacing: 0) {
-                HStack {
-                    Spacer(minLength: 0)
-                    settingsButton
-                        .padding(.top, 20)
-                        .padding(.trailing, 20)
-                }
+                // Controls appear only while the pointer is over the video surface.
+                HStack(alignment: .bottom, spacing: 10) {
+                    cameraInfoCard
+                        .padding(.leading, 18)
+
                     Spacer(minLength: 0)
 
-                    HStack {
-                        cameraInfoCard
-                            .padding(.leading, 14)
-                            .padding(.bottom, 14)
-                        Spacer(minLength: 0)
+                    HStack(spacing: 8) {
+                        audioButton
+                        settingsButton
                     }
+                    .padding(.trailing, 18)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.bottom, 18)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .opacity(vm.isPlayerUIVisible ? 1 : 0)
                 .allowsHitTesting(vm.isPlayerUIVisible)
-                .ignoresSafeArea(.container, edges: .top)
 
                 HStack {
                     Spacer()
@@ -179,6 +174,26 @@ struct CameraStreamMainView: View {
             .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var audioButton: some View {
+        Button {
+            player.toggleMute()
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(player.isMuted ? 0.08 : 0.20))
+                    .frame(width: 28, height: 28)
+                Image(systemName: player.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(player.isMuted ? .white.opacity(0.7) : .green)
+            }
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("m", modifiers: [])
+        .help(player.isMuted ? "Unmute audio (M)" : "Mute audio (M)")
+        .accessibilityLabel(player.isMuted ? "Unmute audio" : "Mute audio")
     }
 
     private var settingsButton: some View {
